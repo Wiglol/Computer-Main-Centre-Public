@@ -1,0 +1,21 @@
+# --- Local cache and private data ---
+paths.db
+centre_index*.json
+.ai_helper/
+__pycache__/
+*.log
+*.tmp
+*.db
+centre_index*.json
+
+# --- OS clutter ---
+Thumbs.db
+.DS_Store
+
+# --- Python packaging ---
+*.pyc
+*.pyo
+*.pyd
+build/
+dist/
+*.egg-info/
