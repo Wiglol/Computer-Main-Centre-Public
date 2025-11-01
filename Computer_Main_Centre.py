@@ -1254,7 +1254,7 @@ def suggest_commands(s: str):
     else:
         print("Suggestions:", ", ".join(cands[:10]))
 
-    # ---------- Handle Commands ----------
+ # ---------- Handle Commands ----------
 def handle_command(s: str):
     s = s.strip()
     if not s:
@@ -1272,7 +1272,8 @@ def handle_command(s: str):
     low = s.lower()
 
     # ---------- Utility automation commands ----------
-       # sleep <seconds> — pause execution
+
+    # sleep <seconds> — pause macro or command chain
     m = re.match(r"^sleep\s+(\d+)$", s, re.I)
     if m:
         secs = int(m.group(1))
@@ -1281,25 +1282,45 @@ def handle_command(s: str):
         p(f"😴 Slept for {secs} seconds")
         return
 
-    # sendkeys "<text>" — simulate keyboard typing (and handle {ENTER})
+    # sendkeys "<text>" — type text or simulate Enter keys
     m = re.match(r'^sendkeys\s+"(.+)"$', s, re.I)
     if m:
         try:
             import pyautogui, time
             keys = m.group(1)
-            # Replace {ENTER} placeholder with real Enter press
+            # Handle {ENTER} placeholder
             if "{ENTER}" in keys.upper():
-                cmd = re.sub(r"\{ENTER\}", "", keys, flags=re.I).strip()
-                if cmd:
-                    pyautogui.typewrite(cmd)
-                    time.sleep(0.3)
-                pyautogui.press('enter')
+                parts = re.split(r"\{ENTER\}", keys, flags=re.I)
+                for i, part in enumerate(parts):
+                    if part.strip():
+                        pyautogui.typewrite(part.strip())
+                    if i < len(parts) - 1:
+                        pyautogui.press("enter")
+                        time.sleep(0.2)
             else:
                 pyautogui.typewrite(keys)
             p(f"⌨️ Sent keys: {keys}")
         except Exception as e:
             p(f"[red]❌ Sendkeys failed:[/red] {e}")
         return
+
+     # --- Universal run command (supports optional 'in <path>' working directory and arguments) ---
+    m = re.match(r"^run\s+'(.+?)'\s*(?:in\s+'([^']+)')?$", s, re.I)
+    if m:
+        full_cmd = m.group(1).strip()
+        workdir = Path(m.group(2)).expanduser() if m.group(2) else None
+        try:
+            cwd = str(workdir) if workdir else None
+            # Keep the command string intact so quoting (/c start "") is preserved
+            subprocess.Popen(full_cmd, cwd=cwd, shell=True)
+            p(f"🚀 Launched: {full_cmd}" + (f" (cwd={cwd})" if cwd else ""))
+        except Exception as e:
+            p(f"[red]❌ Failed to run:[/red] {e}")
+        return
+
+
+
+
 
 
 
@@ -1583,29 +1604,35 @@ def handle_command(s: str):
         op_backup(m.group(1), m.group(2))
         return
 
-    # --- Universal run command (supports optional 'in <path>' working directory) ---
-    m = re.match(r"^run\s+'([^']+)'\s*(?:in\s+'([^']+)')?$", s, re.I)
+        # --- Universal run command (supports optional 'in <path>' and both quote styles) ---
+    m = re.match(r'^run\s+(?:"([^"]+)"|\'([^\']+)\')\s*(?:in\s+(?:"([^"]+)"|\'([^\']+)\'))?$', s, re.I)
     if m:
-        target = Path(m.group(1)).expanduser()
-        workdir = Path(m.group(2)).expanduser() if m.group(2) else target.parent
+        # Support both 'path' and "path"
+        target = Path(m.group(1) or m.group(2)).expanduser()
+        workdir = Path(m.group(3) or m.group(4)).expanduser() if (m.group(3) or m.group(4)) else target.parent
         ext = target.suffix.lower()
         try:
             cwd = str(workdir)
+
+            # --- Run logic (non-blocking) ---
             if ext == ".py":
-                subprocess.run(["python", str(target)], cwd=cwd, shell=True)
+                subprocess.Popen(["python", str(target)], cwd=cwd, shell=True)
             elif ext in (".bat", ".cmd"):
-                subprocess.run([str(target)], cwd=cwd, shell=True)
+                subprocess.Popen(["cmd.exe", "/c", str(target)], cwd=cwd, shell=True)
             elif ext == ".vbs":
-                subprocess.run(["wscript", str(target)], cwd=cwd, shell=True)
+                subprocess.Popen(["wscript", str(target)], cwd=cwd, shell=True)
             elif ext == ".exe":
                 os.startfile(str(target))
             else:
-                # fallback — open any file with system handler
-                os.startfile(str(target))
+                # Fallback — let Windows decide the default handler
+                subprocess.Popen(["cmd.exe", "/c", str(target)], cwd=cwd, shell=True)
+
             p(f"🚀 Launched: {target} (cwd={cwd})")
+
         except Exception as e:
             p(f"[red]❌ Failed to run:[/red] {e}")
         return
+
 
 
 
@@ -1667,7 +1694,9 @@ def show_help():
 "  open  'C:/path/or/app.exe'   Open file/app\n"
 "  explore 'C:/path'            Open in Explorer\n"
 "  backup 'C:/src' 'C:/dest'    Zip into dest with timestamp\n"
-"  run 'C:/path/script.py'      Run a Python script\n\n"
+"  run 'C:/path/app.exe'              Run any file or command\n"
+"  run 'cmd.exe /c start \"\" \"C:/Path/File.bat\"'  Launch batch or shortcut externally\n"
+"  run 'C:/path/script.py' in 'C:/folder'   Run with working directory\n\n"
 "────────────────────────────────────────────────────────\n\n"
 "🌍 INTERNET — Download with 1 GB safety cap\n"
 "  download 'https://...' to 'C:/Downloads'\n"
