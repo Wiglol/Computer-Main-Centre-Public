@@ -1254,7 +1254,7 @@ def suggest_commands(s: str):
     else:
         print("Suggestions:", ", ".join(cands[:10]))
 
-# ---------- Handle Commands ----------
+    # ---------- Handle Commands ----------
 def handle_command(s: str):
     s = s.strip()
     if not s:
@@ -1270,6 +1270,38 @@ def handle_command(s: str):
 
     # Always normalize once the command string is ready
     low = s.lower()
+
+    # ---------- Utility automation commands ----------
+       # sleep <seconds> — pause execution
+    m = re.match(r"^sleep\s+(\d+)$", s, re.I)
+    if m:
+        secs = int(m.group(1))
+        import time
+        time.sleep(secs)
+        p(f"😴 Slept for {secs} seconds")
+        return
+
+    # sendkeys "<text>" — simulate keyboard typing (and handle {ENTER})
+    m = re.match(r'^sendkeys\s+"(.+)"$', s, re.I)
+    if m:
+        try:
+            import pyautogui, time
+            keys = m.group(1)
+            # Replace {ENTER} placeholder with real Enter press
+            if "{ENTER}" in keys.upper():
+                cmd = re.sub(r"\{ENTER\}", "", keys, flags=re.I).strip()
+                if cmd:
+                    pyautogui.typewrite(cmd)
+                    time.sleep(0.3)
+                pyautogui.press('enter')
+            else:
+                pyautogui.typewrite(keys)
+            p(f"⌨️ Sent keys: {keys}")
+        except Exception as e:
+            p(f"[red]❌ Sendkeys failed:[/red] {e}")
+        return
+
+
 
     # Control
     if low in ("help", "?"):
