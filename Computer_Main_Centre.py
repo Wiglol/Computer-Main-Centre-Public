@@ -1688,6 +1688,8 @@ def show_help():
 "  status                     Show current Computer Main Centre state (Batch / SSL / Dry-Run / Java)\n"
 "  log                        Show operation history\n"
 "  undo                       Undo last reversible action\n"
+"  sleep <seconds>             Pause execution in macros (e.g., sleep 3)\n"
+"  sendkeys \"<text>{ENTER}\"     Send keyboard input to the active window\n"
 "  help                       Display this help menu\n"
 "  exit                       Close Computer Main Centre\n\n"
 "────────────────────────────────────────────────────────\n\n"

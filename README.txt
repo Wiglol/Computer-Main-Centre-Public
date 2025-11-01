@@ -1,40 +1,59 @@
-📘 Computer Main Centre (CMC)
-Local command console for file automation and Git integration.
+📘 COMPUTER MAIN CENTRE (CMC)
+=============================
 
-🚀 How to Run
+A local command console for safe file automation, Git integration, and instant path search.
 
-Double-click Start_CMC.vbs to launch the console.
+──────────────────────────────
+🚀 QUICK START
+──────────────────────────────
 
-Type help to explore commands.
+1. Install **Python 3**  
+   → https://www.python.org/downloads/  
+   ✔ Check “Add Python to PATH” during setup
 
-For instant path search, build your first index:
+2. Open Command Prompt and install dependencies:
+   pip install rich requests flask rapidfuzz watchdog pyautogui pygetwindow
 
-/qbuild
+3. (Optional) Install **Git for Windows**  
+   → https://git-scm.com/download/win
 
+4. Launch:
+   • Double-click **Start_CMC.vbs**
+   • Or run:  python Computer_Main_Centre.py
 
-(this scans your drives and creates a local paths.db)
+──────────────────────────────
+💡 USAGE
+──────────────────────────────
 
-⚠️ If You See
-❌ Error: cannot DELETE from contentless fts5 table: paths_fts
+• Type `help` inside CMC to see all commands.  
+• Use `/qbuild` once to build a fast local index for `/qfind` and `/qcount`.  
+• Common examples:
+  - `backup 'C:/Users/user/Documents' 'D:/Backups'`
+  - `macro add publish = delete 'C:/Public/CMC.py'; copy 'C:/Main/CMC.py' to 'C:/Public'`
+  - `batch on; copy 'C:/file.txt' to 'D:/'; batch off`
 
+──────────────────────────────
+🔧 TROUBLESHOOTING
+──────────────────────────────
 
-It means an old or corrupted paths.db file was detected.
-To fix:
+If you see:
+❌ Error: cannot DELETE from contentless fts5 table: paths_fts  
+→ Delete `paths.db` from the CMC folder and rerun `/qbuild`.
 
-Close CMC
+──────────────────────────────
+☕ GIT FEATURES
+──────────────────────────────
 
-Delete paths.db from the CMC folder
+CMC can push or pull GitHub repositories directly:
+  /gitsetup "RepoName"
+  /gitupdate "message"
+  /gitpull
+  /gitstatus
+  /gitdoctor
 
-Restart CMC and run /qbuild again
+──────────────────────────────
+✅ DONE
+──────────────────────────────
 
-🧭 Requirements
-
-Python 3.10 + (installed & added to PATH)
-
-Git for Windows (for GitHub integration)
-
-💡 Tip
-
-You can use /gitsetup, /gitupdate, /gitstatus, and /gitdoctor right inside CMC — no external terminal needed.
-
-Last Updated 01/11/2025
+You’re ready!  
+Start with **Start_CMC.vbs**, type `help`, and explore your automation console.
