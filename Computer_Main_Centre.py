@@ -1727,7 +1727,7 @@ def show_help():
 "  macro delete <name>    macro clear\n"
 "  Vars available: %DATE%, %NOW%, %HOME%\n\n"
 "────────────────────────────────────────────────────────\n\n"
-"⚙️ CONTROL — Toggles & utilities\n"
+"⛭ CONTROL — Toggles & utilities\n"
 "  batch on | batch off        Auto-confirm prompts (skip Y/N)\n"
 "  dry-run on | dry-run off    Preview actions without executing\n"
 "  ssl on | ssl off            Toggle HTTPS certificate verification\n"
