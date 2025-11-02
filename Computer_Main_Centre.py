@@ -12,11 +12,13 @@
 # ==============================================
 
 # ---------- Imports ----------
-import os, sys, re, fnmatch, shutil, zipfile, subprocess, datetime, time, json, threading, glob
-import webbrowser
-import urllib.parse
+import readline, glob, os, sys, re, fnmatch, shutil, zipfile, subprocess, datetime, time, json, threading
 from pathlib import Path
 from urllib.parse import urlparse
+# --- Path safeguard ---
+import pathlib
+Path = pathlib.Path  # force-restore original class in case it was shadowed
+
 
 # Advanced prompt with live autocompletion
 from prompt_toolkit import PromptSession
@@ -1056,7 +1058,7 @@ def op_biggest(path=None):
 
 def op_find_name(name):
     base = Path.cwd()
-    results = [str(p) for p in base.rglob("*") if name.lower() in p.name.lower()]
+    results = [str(fp) for fp in base.rglob("*") if name.lower() in fp.name.lower()]
     if results:
         p(f"[cyan]🔎 Found {len(results)} match(es):[/cyan]")
         for r in results[:20]:
@@ -1064,9 +1066,10 @@ def op_find_name(name):
     else:
         p(f"[yellow]No matches for '{name}'.[/yellow]")
 
+
 def op_find_ext(ext):
     base = Path.cwd()
-    results = [str(p) for p in base.rglob(f"*{ext}")]
+    results = [str(fp) for fp in base.rglob(f"*{ext}")]
     if results:
         p(f"[cyan]🔎 Files with {ext}:[/cyan]")
         for r in results[:20]:
@@ -1074,25 +1077,33 @@ def op_find_ext(ext):
     else:
         p(f"[yellow]No *{ext} files found.[/yellow]")
 
+
 def op_search_text(term):
-    base = Path.cwd()
+    import pathlib
+    base = resolve(".")  # respect CMC's virtual directory
     matches = []
-    for p in base.rglob("*"):
-        if p.is_file():
+
+    for fp in base.rglob("*"):
+        if fp.is_file():
             try:
-                txt = p.read_text(errors="ignore")
+                txt = fp.read_text(errors="ignore")
                 if term.lower() in txt.lower():
-                    matches.append(str(p))
+                    matches.append(str(fp))
                     if len(matches) >= 20:
                         break
             except Exception:
                 continue
+
     if matches:
         p(f"[cyan]🧠 Found '{term}' in {len(matches)} file(s):[/cyan]")
         for m in matches:
             p(f"  {m}")
     else:
         p(f"[yellow]No text matches for '{term}'.[/yellow]")
+
+
+
+
 
 
 def op_run(path):
@@ -1427,13 +1438,24 @@ def suggest_commands(s: str):
         print("Suggestions:", ", ".join(cands[:10]))
 
 def handle_command(s: str):
+    # hard-reset any broken global Path
+    import pathlib, builtins
+    builtins.Path = pathlib.Path
+    globals()["Path"] = pathlib.Path
+
+    # --- Runtime Path fix ---
+    import pathlib
+    globals()["Path"] = pathlib.Path
+
     s = s.strip()
     if not s:
         return
-        
-        # Skip comment / empty lines
+
+    # Skip comment / empty lines
     if not s.strip() or s.strip().startswith("#"):
         return
+
+
 
 
         # ---------- Alias expansion ----------
@@ -1507,8 +1529,9 @@ def handle_command(s: str):
     # --- Universal run command (supports optional 'in <path>') ---
     m = re.match(r"^run\s+'(.+?)'\s*(?:in\s+'([^']+)')?$", s, re.I)
     if m:
+        import pathlib
         full_cmd = m.group(1).strip()
-        workdir = Path(m.group(2)).expanduser() if m.group(2) else None
+        workdir = pathlib.Path(m.group(2)).expanduser() if m.group(2) else None
         try:
             cwd = str(workdir) if workdir else None
             subprocess.Popen(full_cmd, cwd=cwd, shell=True)
@@ -1516,6 +1539,11 @@ def handle_command(s: str):
         except Exception as e:
             p(f"[red]❌ Failed to run:[/red] {e}")
         return
+
+
+
+
+
 
     # ---------- Control ----------
     if low in ("help", "?"):
@@ -1846,7 +1874,8 @@ def handle_command(s: str):
     m = re.match(r"^run\s+'(.+?)'\s*(?:in\s+'([^']+)')?$", s, re.I)
     if m:
         full_cmd = m.group(1).strip()
-        workdir = Path(m.group(2)).expanduser() if m.group(2) else None
+        import pathlib
+        workdir = pathlib.Path(m.group(2)).expanduser() if m.group(2) else None
         try:
             cwd = str(workdir) if workdir else None
             subprocess.Popen(full_cmd, cwd=cwd, shell=True)
