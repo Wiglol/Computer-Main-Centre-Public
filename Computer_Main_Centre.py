@@ -1027,6 +1027,73 @@ def op_backup(src, dest):
                 zf.write(s, s.name)
         log_action(f"BACKUP_ZIP {s} -> {out}")
         p(f"[green]✅ Backup created:[/green] {out}")
+        
+# ---------- Info / Find / Search ----------
+def op_info(path):
+    pth = resolve(path)
+    if not pth.exists():
+        p(f"[red]❌ Not found:[/red] {pth}")
+        return
+    typ = "dir" if pth.is_dir() else "file"
+    size = pth.stat().st_size if pth.is_file() else sum(f.stat().st_size for f in pth.rglob('*') if f.is_file())
+    mtime = datetime.datetime.fromtimestamp(pth.stat().st_mtime).strftime("%Y-%m-%d %H:%M:%S")
+    p(f"[cyan]ℹ️ Info:[/cyan] {pth}\n  Type: {typ}\n  Size: {size:,} bytes\n  Modified: {mtime}")
+
+def op_recent(path=None):
+    base = resolve(path or ".")
+    items = sorted(base.rglob("*"), key=lambda f: f.stat().st_mtime, reverse=True)[:10]
+    p(f"[cyan]🕓 Recent in {base}:[/cyan]")
+    for f in items:
+        t = datetime.datetime.fromtimestamp(f.stat().st_mtime).strftime("%Y-%m-%d %H:%M:%S")
+        p(f"  {t}  {f}")
+
+def op_biggest(path=None):
+    base = resolve(path or ".")
+    files = sorted([f for f in base.rglob("*") if f.is_file()], key=lambda f: f.stat().st_size, reverse=True)[:10]
+    p(f"[cyan]📦 Largest files in {base}:[/cyan]")
+    for f in files:
+        p(f"  {f.stat().st_size/1024/1024:6.1f} MB  {f}")
+
+def op_find_name(name):
+    base = Path.cwd()
+    results = [str(p) for p in base.rglob("*") if name.lower() in p.name.lower()]
+    if results:
+        p(f"[cyan]🔎 Found {len(results)} match(es):[/cyan]")
+        for r in results[:20]:
+            p(f"  {r}")
+    else:
+        p(f"[yellow]No matches for '{name}'.[/yellow]")
+
+def op_find_ext(ext):
+    base = Path.cwd()
+    results = [str(p) for p in base.rglob(f"*{ext}")]
+    if results:
+        p(f"[cyan]🔎 Files with {ext}:[/cyan]")
+        for r in results[:20]:
+            p(f"  {r}")
+    else:
+        p(f"[yellow]No *{ext} files found.[/yellow]")
+
+def op_search_text(term):
+    base = Path.cwd()
+    matches = []
+    for p in base.rglob("*"):
+        if p.is_file():
+            try:
+                txt = p.read_text(errors="ignore")
+                if term.lower() in txt.lower():
+                    matches.append(str(p))
+                    if len(matches) >= 20:
+                        break
+            except Exception:
+                continue
+    if matches:
+        p(f"[cyan]🧠 Found '{term}' in {len(matches)} file(s):[/cyan]")
+        for m in matches:
+            p(f"  {m}")
+    else:
+        p(f"[yellow]No text matches for '{term}'.[/yellow]")
+
 
 def op_run(path):
     fp = resolve(path)
@@ -1363,6 +1430,11 @@ def handle_command(s: str):
     s = s.strip()
     if not s:
         return
+        
+        # Skip comment / empty lines
+    if not s.strip() or s.strip().startswith("#"):
+        return
+
 
         # ---------- Alias expansion ----------
     parts = s.split(maxsplit=1)
@@ -1466,6 +1538,12 @@ def handle_command(s: str):
         op_log(); return
     if low == "undo":
         op_undo(); return
+            # ---------- Echo (for macros and inline output) ----------
+    m = re.match(r"^echo\s+['\"]?(.+?)['\"]?$", s, re.I)
+    if m:
+        p(m.group(1))
+        return
+
     if low == "exit":
         sys.exit(0)
 
@@ -1915,6 +1993,47 @@ def handle_command(s: str):
         else:
             p("Usage: youtube <text>")
         return
+        
+        # ---------- Local Path Index ----------
+    # /qfind <terms> [limit]
+    m = re.match(r"^/qfind\s+(.+?)(?:\s+(\d+))?$", s, re.I)
+    if m:
+        terms = m.group(1)
+        limit = int(m.group(2)) if m.group(2) else 20
+        try:
+            from path_index_local import quick_find
+            results = quick_find(terms, limit)
+            if results:
+                p(f"[cyan]Top {len(results)} results for '{terms}':[/cyan]")
+                for r in results:
+                    p(f"  {r}")
+            else:
+                p(f"[yellow]No matches found for '{terms}'.[/yellow]")
+        except Exception as e:
+            p(f"[red]Quick-find error:[/red] {e}")
+        return
+
+    # /qcount
+    if re.match(r"^/qcount$", s, re.I):
+        try:
+            from path_index_local import quick_count
+            count = quick_count()
+            p(f"📁 Indexed paths: {count}")
+        except Exception as e:
+            p(f"[red]Quick-count error:[/red] {e}")
+        return
+
+    # /qbuild [targets...]
+    m = re.match(r"^/qbuild(?:\s+(.+))?$", s, re.I)
+    if m:
+        targets = m.group(1)
+        try:
+            from path_index_local import quick_build
+            quick_build(targets)
+        except Exception as e:
+            p(f"[red]Quick-build error:[/red] {e}")
+        return
+
 
 
 
