@@ -32,11 +32,11 @@ pip install rich requests pyautogui prompt_toolkit
 
 ```bash
 create file 'test.txt' in '.' with text='Hello'
-create folder 'MyFolder' in 'C:/Users/Wiggo/Desktop'
+create folder 'MyFolder' in 'C:/Users/Wiglo/Desktop'
 read 'test.txt'
 delete 'test.txt'
-zip 'C:/Users/Wiggo/Desktop/MyFolder'
-backup 'C:/Users/Wiggo/Desktop/Test' 'C:/Backups'
+zip 'C:/Users/Wiglo/Desktop/MyFolder'
+backup 'C:/Users/Wiglo/Desktop/Test' 'C:/Backups'
 ```
 
 These commands now fully respect CMC’s **virtual working directory** (`cd` target).
