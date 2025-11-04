@@ -2318,6 +2318,7 @@ def show_help():
 "  batch on | batch off        Auto-confirm prompts (skip Y/N)\n"
 "  dry-run on | dry-run off    Preview actions without executing\n"
 "  ssl on | ssl off            Toggle HTTPS certificate verification\n"
+"  sysinfo                    Show CPU, memory, disk, and system info\n"
 "  status                     Show current Computer Main Centre state (Batch / SSL / Dry-Run / Java)\n"
 "  log                        Show operation history\n"
 "  undo                       Undo last reversible action\n"

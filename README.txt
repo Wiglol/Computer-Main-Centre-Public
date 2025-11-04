@@ -13,7 +13,7 @@ Installation
 
 2. Open CMD and install required packages:
 
-   pip install rich requests pyautogui prompt_toolkit
+   pip install rich requests pyautogui prompt_toolkit psutil
 
    (Optional: For old Windows CMD versions, also run `pip install pyreadline3`)
 
@@ -56,6 +56,32 @@ CONTROL
   dry-run on/off
   ssl on/off
   status / log / undo / help / exit
+  sysinfo
+    Display detailed system information (CPU, RAM, disk usage, etc.)
+
+TIMER & REMINDERS
+  timer <seconds> [action]
+      Start a countdown timer (in seconds).
+      When time expires:
+        • If [action] is text, it prints a reminder.
+        • If [action] starts with 'run' or 'macro', that command is executed automatically.
+Examples:
+      timer 10 "Take a break!"
+      timer 5 run macro run publish_public
+      timer 60 macro run backup_journey
+        
+
+CMD PASSTHROUGH
+  cmd
+      Opens a real Windows Command Prompt (type 'exit' to return).
+
+  cmd <command>
+      Run a Windows CMD command directly inside CMC.
+  Examples:
+      cmd dir
+      cmd ipconfig /all
+      cmd sfc /scannow
+
 
 MACROS
   macro add <name> = <commands>
