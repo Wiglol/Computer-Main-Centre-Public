@@ -1,5 +1,28 @@
 
 #!/usr/bin/env python3
+# ---------- CMC hard-start globals (do not move) ----------
+import re, sys, pathlib
+# Make pathlib.Path available globally from the start
+Path = pathlib.Path
+globals()["Path"] = pathlib.Path
+
+# Minimal global print wrapper; later Rich code can overwrite it safely
+if "p" not in globals():
+    def p(x):
+        try:
+            # If a Rich console exists later, it will overwrite this anyway
+            console = globals().get("console", None)
+            if console:
+                console.print(x)
+                return
+        except Exception:
+            pass
+        try:
+            print(re.sub(r"\[/?[a-z]+\]", "", str(x)))
+        except Exception:
+            print(str(x))
+# ---------- end hard-start globals ----------
+
 # ==============================================
 #  Computer Main Centre  — Local AI Command Console
 #  - Batch mode, Dry-Run, SSL toggle
@@ -11,22 +34,20 @@
 #  - Macros (add / run / list / delete / clear) persisted to %USERPROFILE%\.ai_helper\macros.json
 # ==============================================
 
-# ---------- Imports ----------
-import readline, glob, os, sys, re, fnmatch, shutil, zipfile, subprocess, datetime, time, json, threading
+# ==========================================================
+#  Computer Main Centre  — Local AI Command Console
+# ==========================================================
+
+import os, sys, re, glob, fnmatch, shutil, zipfile, subprocess, datetime, time, json, threading
 from pathlib import Path
 from urllib.parse import urlparse
-# --- Path safeguard ---
 import pathlib
-Path = pathlib.Path  # force-restore original class in case it was shadowed
+Path = pathlib.Path
 
-
-# Advanced prompt with live autocompletion
 from prompt_toolkit import PromptSession
 from prompt_toolkit.completion import WordCompleter
 from prompt_toolkit.styles import Style
 
-
-# ✅ Cross-platform readline import (for Windows autocompletion)
 try:
     import readline
 except ImportError:
@@ -35,14 +56,16 @@ except ImportError:
     except ImportError:
         readline = None
 
-
 # ---------- Optional dependencies ----------
 RICH = False
 try:
     from rich.console import Console
     from rich.table import Table
     from rich.panel import Panel
-    from rich.progress import Progress, BarColumn, TextColumn, TimeRemainingColumn, DownloadColumn, TransferSpeedColumn
+    from rich.progress import (
+        Progress, BarColumn, TextColumn, TimeRemainingColumn,
+        DownloadColumn, TransferSpeedColumn
+    )
     from rich.prompt import Confirm
     from rich.box import HEAVY
     RICH = True
@@ -52,12 +75,76 @@ except Exception:
         def print(self, *a, **k): print(*a)
     console = _Dummy()
 
+# ---------- Safe Rich print wrapper (global early definition) ----------
+def p(x):
+    """Universal print wrapper for Rich and non-Rich output."""
+    try:
+        if "console" in globals() and globals().get("RICH", False):
+            console.print(x)
+        else:
+            print(re.sub(r"\[/?[a-z]+\]", "", str(x)))
+    except Exception:
+        print(str(x))
+
 HAVE_REQUESTS = False
 try:
     import requests
     HAVE_REQUESTS = True
 except Exception:
     pass
+
+# ==========================================================
+# 🔧  Computer Main Centre – Auto-Setup & Dependency Checker
+# ==========================================================
+import importlib, platform
+MIN_PY = (3, 10)
+REQUIRED = ["rich", "requests", "pyautogui", "prompt_toolkit", "psutil"]
+...
+
+
+def safe_run(cmd):
+    """Run a system command quietly, returns exit code."""
+    try:
+        subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
+    except Exception:
+        pass
+
+def check_python_version():
+    if sys.version_info < MIN_PY:
+        print(f"⚠️  Warning: Python {MIN_PY[0]}.{MIN_PY[1]}+ is recommended. "
+              f"You’re using {platform.python_version()}. Some features may not work.\n")
+
+def upgrade_pip():
+    try:
+        import pip
+        pip_version = tuple(map(int, pip.__version__.split(".")[:2]))
+        if pip_version < (23, 0):
+            print("⬆️  Upgrading pip...\n")
+            safe_run([sys.executable, "-m", "pip", "install", "--upgrade", "pip"])
+    except Exception:
+        # if pip itself is missing or broken
+        print("⚠️  Repairing pip...\n")
+        safe_run([sys.executable, "-m", "ensurepip", "--upgrade"])
+        safe_run([sys.executable, "-m", "pip", "install", "--upgrade", "pip"])
+
+def ensure_packages():
+    installed_any = False
+    for pkg in REQUIRED:
+        try:
+            importlib.import_module(pkg)
+        except ModuleNotFoundError:
+            installed_any = True
+            print(f"📦 Installing missing package: {pkg}")
+            safe_run([sys.executable, "-m", "pip", "install", pkg, "--upgrade"])
+    if installed_any:
+        print("✅ All dependencies installed.\n")
+
+# --- Run checks ---
+check_python_version()
+upgrade_pip()
+ensure_packages()
+# ==========================================================
+
 
 # ---------- Global state ----------
 HOME = Path.home()
@@ -613,11 +700,6 @@ def save_aliases():
         json.dump(ALIASES, f, indent=2)
 
 # ---------- Helpers ----------
-def p(x):
-    if RICH:
-        console.print(x)
-    else:
-        print(re.sub(r"\[/?[a-z]+\]", "", str(x)))
 
 def lc_size(n):
     try:
@@ -973,32 +1055,48 @@ def _zip_dir_to(zf: zipfile.ZipFile, base: Path, root: Path):
             fp = Path(r)/f
             zf.write(fp, fp.relative_to(base))
 
-def op_zip(path):
-    s = resolve(path)
-    out = s.with_suffix(".zip") if s.is_file() else (s.parent / f"{s.name}.zip")
-    if confirm(f"Zip:\n  {s}\n→ {out}"):
-        if STATE["dry_run"]:
-            p(f"[yellow]DRY-RUN zip ->[/yellow] {s} → {out}")
-            return
-        with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as zf:
-            if s.is_dir():
-                _zip_dir_to(zf, s.parent, s)
-            else:
-                zf.write(s, s.name)
-        log_action(f"ZIPPED {s} -> {out}")
-        p(f"[green]✅ Zipped to:[/green] {out}" if RICH else f"Zipped to: {out}")
+# ---------- Zip helper (supports optional destination) ----------
+def op_zip(src, dest_folder=None):
+    import zipfile, os
+    from pathlib import Path
 
-def op_unzip(zip_path, dest):
-    zp = resolve(zip_path); d = resolve(dest)
-    if confirm(f"Unzip:\n  {zp}\n→ {d}"):
-        if STATE["dry_run"]:
-            p(f"[yellow]DRY-RUN unzip ->[/yellow] {zp} → {d}")
-            return
-        d.mkdir(parents=True, exist_ok=True)
-        with zipfile.ZipFile(zp, "r") as zf:
-            zf.extractall(d)
-        log_action(f"UNZIPPED {zp} -> {d}")
-        p(f"[green]✅ Unzipped to:[/green] {d}" if RICH else f"Unzipped to: {d}")
+    src = Path(src)
+    if dest_folder:
+        dest_folder = Path(dest_folder)
+    else:
+        dest_folder = src.parent
+
+    dest_folder.mkdir(parents=True, exist_ok=True)
+    dest_file = dest_folder / f"{src.name}.zip"
+
+    try:
+        with zipfile.ZipFile(dest_file, "w", zipfile.ZIP_DEFLATED) as zf:
+            if src.is_dir():
+                for root, _, files in os.walk(src):
+                    for f in files:
+                        file_path = Path(root) / f
+                        zf.write(file_path, file_path.relative_to(src))
+            else:
+                zf.write(src, src.name)
+        p(f"[green bold]📦 Zipped {src} → {dest_file}[/green bold]")
+    except Exception as e:
+        p(f"[red]❌ Zip failed:[/red] {e}")
+
+
+def op_unzip(zip_path, dest_folder):
+    import zipfile
+    from pathlib import Path
+    zip_path = Path(zip_path)
+    dest_folder = Path(dest_folder)
+    dest_folder.mkdir(parents=True, exist_ok=True)
+
+    try:
+        with zipfile.ZipFile(zip_path, "r") as zf:
+            zf.extractall(dest_folder)
+        p(f"[green bold]📂 Unzipped {zip_path} → {dest_folder}[/green bold]")
+    except Exception as e:
+        p(f"[red]❌ Unzip failed:[/red] {e}")
+
 
 def op_open(path):
     fp = resolve(path)
@@ -1544,28 +1642,27 @@ def suggest_commands(s: str):
     else:
         print("Suggestions:", ", ".join(cands[:10]))
 
-def handle_command(s: str):
 
-    # hard-reset any broken global Path
+# ---------- Main command handler ----------
+def handle_command(s: str):
+    global Path, p  # ✅ ensure we always use the global versions
+
+    # --- Runtime Path fix (safest minimal form) ---
     import pathlib, builtins
     builtins.Path = pathlib.Path
     globals()["Path"] = pathlib.Path
 
-    # --- Runtime Path fix ---
-    import pathlib
-    globals()["Path"] = pathlib.Path
-
-    import subprocess  # ✅ keep 4-space indentation, same as others
+    import subprocess  # used by several commands below
 
     s = s.strip()
     if not s:
         return
 
     # Skip comment / empty lines
-    if not s.strip() or s.strip().startswith("#"):
+    if s.startswith("#"):
         return
 
-        
+
         
             # ---------- CMD passthrough (inline) ----------
     m = re.match(r"^cmd\s+(.+)$", s, re.I)
@@ -1636,6 +1733,10 @@ def handle_command(s: str):
     if m:
         op_timer(m.group(1), m.group(2))
         return
+        
+        
+     
+
 
 
 
@@ -1975,15 +2076,36 @@ def handle_command(s: str):
     if m:
         op_delete(m.group(1)); return
 
-    # zip 'C:/path'
-    m = re.match(r"^zip\s+'(.+?)'$", s, re.I)
-    if m:
-        op_zip(m.group(1)); return
+     
 
-    # unzip 'C:/file.zip' to 'C:/dest'
-    m = re.match(r"^unzip\s+'(.+?)'\s+to\s+'(.+?)'$", s, re.I)
+    # zip 'C:/path' or zip 'C:/path' to 'C:/dest'
+    m = re.match(r"^zip\s+'([^']+)'(?:\s+to\s+'([^']+)')?$", s, re.I)
     if m:
-        op_unzip(m.group(1), m.group(2)); return
+        src = m.group(1)
+        dest = m.group(2)
+        if dest:
+            op_zip(src, dest)
+        else:
+            # default: zip to same folder
+            from pathlib import Path
+            p = Path(src)
+            op_zip(src, str(p.parent))
+        return
+
+        # unzip 'C:/file.zip' or unzip 'C:/file.zip' to 'C:/dest'
+    m = re.match(r"^unzip\s+'([^']+)'(?:\s+to\s+'([^']+)')?$", s, re.I)
+    if m:
+        zip_path = m.group(1)
+        dest = m.group(2)
+        if dest:
+            op_unzip(zip_path, dest)
+        else:
+            from pathlib import Path
+            p = Path(zip_path)
+            op_unzip(zip_path, str(p.parent))
+        return
+
+
 
     # open 'C:/file-or-app'
     m = re.match(r"^open\s+'(.+?)'$", s, re.I)
